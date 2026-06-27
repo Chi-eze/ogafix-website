@@ -5,7 +5,7 @@ import { Pool } from 'pg';
 import { getDatabaseConfig, testParameterStoreConnection } from './lib/secrets.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
-import tradesmen Routes from './routes/tradesmen.js';
+import trademenRoutes from './routes/tradesmen.js';
 import jobRoutes from './routes/jobs.js';
 import messageRoutes from './routes/messages.js';
 import reviewRoutes from './routes/reviews.js';
