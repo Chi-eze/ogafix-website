@@ -10,3 +10,13 @@ build/
 *.swp
 *.swo
 .parcel-cache
+
+# Sensitive Documentation (Keep locally, don't commit)
+# These files contain credentials and sensitive procedures
+# They are available in .docs/ for reference but not tracked by Git
+.docs/CREDENTIALS.md
+.docs/DISASTER_RECOVERY.md
+.docs/MONITORING.md
+.docs/BACKUP.md
+.docs/TROUBLESHOOTING.md
+.docs/EC2_SETUP.md
