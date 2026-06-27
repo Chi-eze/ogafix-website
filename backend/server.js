@@ -30,12 +30,16 @@ async function initializeDatabase() {
     // Try to get credentials from Parameter Store (production)
     if (process.env.NODE_ENV === 'production' || process.env.USE_PARAMETER_STORE === 'true') {
       console.log('Attempting to retrieve database credentials from AWS Parameter Store...');
-      const isConnected = await testParameterStoreConnection();
-      
-      if (isConnected) {
-        dbConfig = await getDatabaseConfig();
-        console.log('✅ Successfully retrieved database credentials from Parameter Store');
-      } else {
+      try {
+        const isConnected = await testParameterStoreConnection();
+        
+        if (isConnected) {
+          dbConfig = await getDatabaseConfig();
+          console.log('✅ Successfully retrieved database credentials from Parameter Store');
+        } else {
+          throw new Error('Parameter Store not available');
+        }
+      } catch (psError) {
         console.warn('⚠️ Parameter Store not available, falling back to environment variables');
         dbConfig = {
           host: process.env.DB_HOST,
