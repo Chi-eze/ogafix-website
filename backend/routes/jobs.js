@@ -1,26 +1,10 @@
 import express from 'express';
 import { pool } from '../server.js';
-import jwt from 'jsonwebtoken';
+import { verifyToken } from '../lib/auth.js';
 
 const router = express.Router();
 
-// Middleware to verify JWT
-const verifyToken = (req, res, next) => {
-  const token = req.headers.authorization && req.headers.authorization.split(' ')[1];
-  if (!token) {
-    return res.status(401).json({ success: false, message: 'No token provided' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (error) {
-    res.status(401).json({ success: false, message: 'Invalid token' });
-  }
-};
-
-// Create job
+// Create job — any logged-in user can post
 router.post('/', verifyToken, async (req, res) => {
   try {
     const { title, description, category, city_id, address, budget, image_urls } = req.body;
@@ -38,6 +22,23 @@ router.post('/', verifyToken, async (req, res) => {
   } catch (error) {
     console.error('Error creating job:', error);
     res.status(500).json({ success: false, message: 'Failed to create job' });
+  }
+});
+
+// Get jobs posted by current user
+router.get('/mine', verifyToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT j.*, c.name as city, c.state FROM jobs j
+       JOIN cities c ON j.city_id = c.id
+       WHERE j.customer_id = $1
+       ORDER BY j.created_at DESC`,
+      [req.user.id]
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching user jobs:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch your jobs' });
   }
 });
 

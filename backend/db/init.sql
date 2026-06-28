@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash VARCHAR(255) NOT NULL,
   first_name VARCHAR(100),
   last_name VARCHAR(100),
-  user_type VARCHAR(20) NOT NULL CHECK (user_type IN ('customer', 'tradesman')),
+  user_type VARCHAR(20) NOT NULL DEFAULT 'customer' CHECK (user_type IN ('customer', 'tradesman')),
   profile_picture_url TEXT,
   bio TEXT,
   is_verified BOOLEAN DEFAULT FALSE,
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS tradesmen (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-  trade_category VARCHAR(100) NOT NULL,
+  trade_category VARCHAR(100),
   experience_years INTEGER,
   certifications TEXT,
   portfolio_count INTEGER DEFAULT 0,
@@ -130,6 +130,8 @@ CREATE INDEX idx_job_responses_tradesman_id ON job_responses(tradesman_id);
 CREATE INDEX idx_messages_sender_id ON messages(sender_id);
 CREATE INDEX idx_messages_recipient_id ON messages(recipient_id);
 CREATE INDEX idx_messages_is_read ON messages(is_read);
+CREATE INDEX idx_messages_job_id ON messages(job_id);
+CREATE INDEX idx_messages_created_at ON messages(created_at);
 CREATE INDEX idx_reviews_reviewee_id ON reviews(reviewee_id);
 CREATE INDEX idx_portfolio_tradesman_id ON portfolio(tradesman_id);
 CREATE INDEX idx_tradesman_service_areas_tradesman_id ON tradesman_service_areas(tradesman_id);

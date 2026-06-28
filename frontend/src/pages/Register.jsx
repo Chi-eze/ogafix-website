@@ -60,7 +60,11 @@ export default function Register() {
           <p className="text-gray-600">Trusted Tradesmen, Excellent Results</p>
         </div>
 
-        {/* User Type Selection */}
+          <p className="text-gray-600 text-sm mb-6">
+            {formData.user_type === 'tradesman'
+              ? 'You will get a tradesman profile. You can still post jobs and hire other pros.'
+              : 'Everyone can post jobs. Add a tradesman profile later from your account.'}
+          </p>
         <div className="flex gap-4 mb-6">
           <button
             onClick={() => handleUserTypeChange('customer')}

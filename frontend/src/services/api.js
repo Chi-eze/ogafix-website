@@ -42,20 +42,24 @@ export const userAPI = {
   getProfile: () => api.get('/users/profile'),
   updateProfile: (data) => api.put('/users/profile', data),
   getUser: (id) => api.get(`/users/${id}`),
+  becomeTradesman: (data) => api.post('/users/become-tradesman', data),
 }
 
 // Tradesman endpoints
-export const tradesmen API = {
+export const tradesmanAPI = {
+  getMyProfile: () => api.get('/tradesmen/me'),
   getProfile: (id) => api.get(`/tradesmen/${id}`),
   updateProfile: (id, data) => api.put(`/tradesmen/${id}`, data),
   updateServiceAreas: (id, data) => api.put(`/tradesmen/${id}/service-areas`, data),
   getMatchingJobs: (id) => api.get(`/tradesmen/${id}/matching-jobs`),
+  getMyMatchingJobs: () => api.get('/tradesmen/me/matching-jobs'),
 }
 
 // Job endpoints
 export const jobAPI = {
   create: (data) => api.post('/jobs', data),
   getAll: (filters) => api.get('/jobs', { params: filters }),
+  getMine: () => api.get('/jobs/mine'),
   getById: (id) => api.get(`/jobs/${id}`),
   updateStatus: (id, status) => api.put(`/jobs/${id}/status`, { status }),
   submitResponse: (id, data) => api.post(`/jobs/${id}/responses`, data),

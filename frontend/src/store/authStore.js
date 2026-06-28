@@ -1,11 +1,27 @@
 import { create } from 'zustand'
-import { authAPI } from '../services/api'
+import { authAPI, userAPI } from '../services/api'
+import { connectSocket, disconnectSocket } from '../lib/socket'
 
-export const useAuthStore = create((set) => ({
+export const useAuthStore = create((set, get) => ({
   user: null,
   token: localStorage.getItem('token') || null,
   loading: false,
   error: null,
+
+  loadProfile: async () => {
+    const token = get().token
+    if (!token) return null
+
+    try {
+      const response = await userAPI.getProfile()
+      const user = response.data.data
+      set({ user })
+      connectSocket(token)
+      return user
+    } catch {
+      return null
+    }
+  },
 
   register: async (data) => {
     set({ loading: true, error: null })
@@ -13,6 +29,7 @@ export const useAuthStore = create((set) => ({
       const response = await authAPI.register(data)
       const { token, user } = response.data
       localStorage.setItem('token', token)
+      connectSocket(token)
       set({ user, token, loading: false })
       return response.data
     } catch (error) {
@@ -27,6 +44,7 @@ export const useAuthStore = create((set) => ({
       const response = await authAPI.login(data)
       const { token, user } = response.data
       localStorage.setItem('token', token)
+      connectSocket(token)
       set({ user, token, loading: false })
       return response.data
     } catch (error) {
@@ -35,8 +53,17 @@ export const useAuthStore = create((set) => ({
     }
   },
 
+  becomeTradesman: async (tradeCategory) => {
+    const response = await userAPI.becomeTradesman({ trade_category: tradeCategory })
+    const { token, user } = response.data
+    localStorage.setItem('token', token)
+    set({ user, token })
+    return user
+  },
+
   logout: () => {
     localStorage.removeItem('token')
+    disconnectSocket()
     set({ user: null, token: null })
   },
 

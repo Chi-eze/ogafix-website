@@ -1,181 +1,170 @@
 # OgaFix Backend API
 
-This is the Node.js/Express backend API for the OgaFix platform.
+Node.js/Express API with PostgreSQL and Socket.io real-time messaging.
 
-## Setup Instructions
-
-### 1. Install Dependencies
+## Setup
 
 ```bash
 npm install
-```
-
-### 2. Configure Environment Variables
-
-Copy `.env.example` to `.env` and update with your values:
-
-```bash
 cp .env.example .env
 ```
 
-Update the following in `.env`:
-- `DB_HOST`: Your RDS endpoint
-- `DB_PASSWORD`: Your database password
-- `JWT_SECRET`: A secure random string
-- `AWS_ACCESS_KEY_ID`: Your AWS access key
-- `AWS_SECRET_ACCESS_KEY`: Your AWS secret key
-- `S3_BUCKET`: Your S3 bucket name
-- `CLOUDFRONT_URL`: Your CloudFront distribution URL
+### Environment variables
 
-### 3. Initialize Database
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DB_HOST` | RDS endpoint | `ogafix-db.xxxxx.eu-west-1.rds.amazonaws.com` |
+| `DB_PORT` | Database port | `5432` |
+| `DB_NAME` | Database name | `ogafix` |
+| `DB_USER` | Database user | `ogafixadmin` |
+| `DB_PASSWORD` | Database password | (secret) |
+| `PORT` | Server port | `3000` |
+| `NODE_ENV` | Environment | `development` / `production` |
+| `JWT_SECRET` | JWT signing key | (secret) |
+| `JWT_EXPIRY` | Token expiry | `7d` |
+| `FRONTEND_URL` | CORS + Socket.io origin | `https://ogafix.work` |
+| `USE_PARAMETER_STORE` | Load DB creds from AWS SSM | `true` (production) |
+| `AWS_REGION` | AWS region | `eu-west-1` |
+
+## Database
+
+**Initialize schema (new database):**
 
 ```bash
-psql -h your-rds-endpoint -U ogafixadmin -d ogafix -f db/init.sql
+npm run db:init
 ```
 
-Or use the migration script:
+**Apply migrations (existing database):**
 
 ```bash
 npm run migrate
 ```
 
-### 4. Start Development Server
+Or manually:
+
+```bash
+psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f db/init.sql
+```
+
+### Dual-role model
+
+- `users` — one row per person (customer capabilities by default)
+- `tradesmen` — optional extension; created at tradesman signup or via `POST /api/users/become-tradesman`
+- `jobs.customer_id` references `users.id` (not `tradesmen.id`)
+- `job_responses.tradesman_id` references `tradesmen.id`
+
+JWT payload includes `id`, `email`, `is_tradesman`, `tradesman_id`. Full profile from `GET /api/users/profile` via `lib/auth.js`.
+
+## Development
 
 ```bash
 npm run dev
 ```
 
-The API will be available at `http://localhost:3000`
+- REST: `http://localhost:3000/api`
+- Health: `http://localhost:3000/health`
+- Socket.io: `http://localhost:3000/socket.io`
 
-## API Endpoints
+## API endpoints
 
-### Authentication
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login user
-- `POST /api/auth/verify` - Verify JWT token
+### Auth
+- `POST /api/auth/register` — body: `email`, `password`, `first_name`, `last_name`, optional `user_type` (`customer`|`tradesman`), optional `phone_number`
+- `POST /api/auth/login`
+- `POST /api/auth/verify` — header: `Authorization: Bearer <token>`
 
 ### Users
-- `GET /api/users/profile` - Get current user profile
-- `PUT /api/users/profile` - Update user profile
-- `GET /api/users/:id` - Get public user profile
+- `GET /api/users/profile`
+- `PUT /api/users/profile`
+- `POST /api/users/become-tradesman` — body: optional `trade_category`
+- `GET /api/users/:id`
 
 ### Tradesmen
-- `GET /api/tradesmen/:id` - Get tradesman profile
-- `PUT /api/tradesmen/:id` - Update tradesman profile
-- `PUT /api/tradesmen/:id/service-areas` - Update service areas
-- `GET /api/tradesmen/:id/matching-jobs` - Get matching jobs
+- `GET /api/tradesmen/me`
+- `GET /api/tradesmen/me/matching-jobs`
+- `GET /api/tradesmen/:id`
+- `PUT /api/tradesmen/:id` (owner only)
+- `PUT /api/tradesmen/:id/service-areas`
+- `GET /api/tradesmen/:id/matching-jobs`
 
 ### Jobs
-- `POST /api/jobs` - Create job
-- `GET /api/jobs` - Get all jobs (with filters)
-- `GET /api/jobs/:id` - Get job details
-- `PUT /api/jobs/:id/status` - Update job status
-- `POST /api/jobs/:id/responses` - Submit job response
-- `GET /api/jobs/:id/responses` - Get job responses
+- `POST /api/jobs` — any authenticated user
+- `GET /api/jobs` — query: `city_id`, `category`, `status`
+- `GET /api/jobs/mine` — current user's posted jobs
+- `GET /api/jobs/:id`
+- `PUT /api/jobs/:id/status`
+- `POST /api/jobs/:id/responses` — tradesman only
+- `GET /api/jobs/:id/responses`
 
-### Messages
-- `POST /api/messages` - Send message
-- `GET /api/messages/conversation/:user_id` - Get conversation
-- `GET /api/messages/inbox` - Get inbox
-- `PUT /api/messages/:id/read` - Mark as read
+### Messages (REST + Socket.io)
+- `POST /api/messages` — body: `recipient_id`, `content`, optional `job_id`
+- `GET /api/messages/inbox`
+- `GET /api/messages/conversation/:user_id`
+- `PUT /api/messages/:id/read`
+
+**Socket.io:** Client connects with `{ auth: { token: '<jwt>' } }`. Server emits `new_message` to recipient and conversation room.
 
 ### Reviews
-- `POST /api/reviews` - Create review
-- `GET /api/reviews/user/:user_id` - Get user reviews
-- `GET /api/reviews/job/:job_id` - Get job review
+- `POST /api/reviews`
+- `GET /api/reviews/user/:user_id`
+- `GET /api/reviews/job/:job_id`
 
 ### Cities
-- `GET /api/cities` - Get all cities
-- `GET /api/cities/:id` - Get city details
-- `GET /api/cities/states/list` - Get all states
+- `GET /api/cities`
+- `GET /api/cities/:id`
+- `GET /api/cities/states/list`
 
-## Deployment to AWS Lightsail
+## Production (EC2 + systemd)
 
-### 1. Build Docker Image
+The API runs as `ogafix-backend.service` on port 3000. nginx proxies `/api/` and `/socket.io/`.
 
 ```bash
-docker build -t ogafix-api:latest .
+sudo systemctl restart ogafix-backend
+sudo systemctl status ogafix-backend
+tail -f /var/log/ogafix-backend.log
 ```
 
-### 2. Push to Lightsail
-
-SSH into your Lightsail instance and:
+After code deploy:
 
 ```bash
-# Clone the repository
-git clone https://github.com/Chi-eze/ogafix-website.git
-cd ogafix-website/backend
-
-# Build Docker image
-docker build -t ogafix-api:latest .
-
-# Run container
-docker run -d \
-  --name ogafix-api \
-  -p 3000:3000 \
-  --env-file .env \
-  ogafix-api:latest
+cd /home/ubuntu/ogafix-website/backend
+npm install
+sudo systemctl restart ogafix-backend
 ```
 
-### 3. Set Up Reverse Proxy (Nginx)
+### nginx (required for Socket.io over HTTPS)
 
-```bash
-sudo apt-get install nginx
+```nginx
+location /api/ {
+    proxy_pass http://localhost:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
 
-# Create nginx config
-sudo nano /etc/nginx/sites-available/ogafix
-
-# Add the following:
-server {
-  listen 80;
-  server_name api.ogafix.com;
-
-  location / {
+location /socket.io/ {
     proxy_pass http://localhost:3000;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection 'upgrade';
+    proxy_set_header Connection "upgrade";
     proxy_set_header Host $host;
-    proxy_cache_bypass $http_upgrade;
-  }
 }
-
-# Enable site
-sudo ln -s /etc/nginx/sites-available/ogafix /etc/nginx/sites-enabled/
-
-# Test and restart nginx
-sudo nginx -t
-sudo systemctl restart nginx
 ```
 
-## Environment Variables Reference
+See `ogafix-infrastructure/nginx/ogafix.letsencrypt.conf` for the full production config.
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| DB_HOST | RDS endpoint | ogafix-db.xxxxx.eu-west-1.rds.amazonaws.com |
-| DB_PORT | Database port | 5432 |
-| DB_NAME | Database name | ogafix |
-| DB_USER | Database user | ogafixadmin |
-| DB_PASSWORD | Database password | YourSecurePassword123! |
-| PORT | Server port | 3000 |
-| NODE_ENV | Environment | production |
-| JWT_SECRET | JWT signing key | your-secret-key |
-| JWT_EXPIRY | Token expiry | 7d |
-| AWS_REGION | AWS region | eu-west-1 |
-| S3_BUCKET | S3 bucket name | ogafix-images-prod-eu-west-1 |
-| CLOUDFRONT_URL | CloudFront URL | https://d123456.cloudfront.net |
-| FRONTEND_URL | Frontend URL | https://ogafix.com |
+## Docker (optional)
+
+```bash
+docker build -t ogafix-api:latest .
+docker run -d --name ogafix-api -p 3000:3000 --env-file .env ogafix-api:latest
+```
 
 ## Troubleshooting
 
-### Database Connection Error
+**Database connection failed** — Check RDS security group allows EC2 on port 5432.
 
-Ensure your RDS security group allows connections from Lightsail instance.
+**Migration failed** — Ensure `DB_*` env vars are set (or `USE_PARAMETER_STORE=true` on EC2).
 
-### JWT Token Error
+**Socket.io not connecting** — Verify nginx `/socket.io/` proxy and `FRONTEND_URL` matches the site origin.
 
-Make sure `JWT_SECRET` is set and consistent across deployments.
-
-### S3 Upload Error
-
-Verify AWS credentials and S3 bucket permissions.
+**JWT errors** — `JWT_SECRET` must be consistent across restarts.
